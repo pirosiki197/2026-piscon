@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"database/sql"
 	"encoding/json"
@@ -275,7 +276,7 @@ func getUserIDFromSession(c echo.Context) (string, int, error) {
 	jiaUserID := _jiaUserID.(string)
 	var count int
 
-	err = db.Get(&count, "SELECT COUNT(*) FROM `user` WHERE `jia_user_id` = ?",
+	err = db.GetContext(c.Request().Context(), &count, "SELECT COUNT(*) FROM `user` WHERE `jia_user_id` = ?",
 		jiaUserID)
 	if err != nil {
 		return "", http.StatusInternalServerError, fmt.Errorf("db error: %v", err)
@@ -976,7 +977,7 @@ func getIsuConditions(c echo.Context) error {
 	}
 
 	var isuName string
-	err = db.Get(&isuName,
+	err = db.GetContext(c.Request().Context(), &isuName,
 		"SELECT name FROM `isu` WHERE `jia_isu_uuid` = ? AND `jia_user_id` = ?",
 		jiaIsuUUID, jiaUserID,
 	)
@@ -989,7 +990,7 @@ func getIsuConditions(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	conditionsResponse, err := getIsuConditionsFromDB(db, jiaIsuUUID, endTime, conditionLevel, startTime, conditionLimit, isuName)
+	conditionsResponse, err := getIsuConditionsFromDB(c.Request().Context(), db, jiaIsuUUID, endTime, conditionLevel, startTime, conditionLimit, isuName)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -998,21 +999,21 @@ func getIsuConditions(c echo.Context) error {
 }
 
 // ISUのコンディションをDBから取得
-func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, conditionLevel map[string]any, startTime time.Time,
+func getIsuConditionsFromDB(ctx context.Context, db *sqlx.DB, jiaIsuUUID string, endTime time.Time, conditionLevel map[string]any, startTime time.Time,
 	limit int, isuName string) ([]*GetIsuConditionResponse, error) {
 
 	conditions := []IsuCondition{}
 	var err error
 
 	if startTime.IsZero() {
-		err = db.Select(&conditions,
+		err = db.SelectContext(ctx, &conditions,
 			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	ORDER BY `timestamp` DESC",
 			jiaIsuUUID, endTime,
 		)
 	} else {
-		err = db.Select(&conditions,
+		err = db.SelectContext(ctx, &conditions,
 			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
