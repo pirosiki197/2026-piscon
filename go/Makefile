@@ -1,2 +1,2 @@
 all:
-	otelc go build main.go -o isucondition
+	otelc go build -o isucondition .
